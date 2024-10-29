@@ -1,0 +1,24 @@
+ALGORITMO Householder_QR(X)
+    Entrada: Matriz X de tamaño (m, n) con m ≥ n
+    Salida: Matriz ortogonal Q de tamaño (m, m) y matriz triangular superior R de tamaño (m, n)
+    
+    1. Inicializar Q como la matriz identidad de tamaño (m, m)
+    2. Inicializar R como una copia de X
+    
+    3. PARA i DESDE 0 HASTA n - 1 HACER:
+        4. Seleccionar el subvector x como la subcolumna i de R desde la fila i hasta la fila m-1
+        5. Calcular la norma de x, denotada como ||x||
+        
+        6. Construir el vector e1 de la misma longitud que x, donde e1[0] = ||x|| y el resto de elementos son 0
+        7. Calcular el vector de reflexión v como: v = x - e1
+        8. Normalizar v: v = v / ||v||  (si ||v|| ≠ 0)
+        
+        9. Construir la matriz de Householder H_i de tamaño (m, m) como:
+            H_i = I - 2 * (v * v^T) / (v^T * v)  (donde I es la matriz identidad de tamaño (m, m))
+        
+       10. Actualizar R multiplicando H_i por R: R = H_i * R
+       11. Actualizar Q multiplicando Q por H_i: Q = Q * H_i
+    
+    12. Fin PARA
+
+    13. Retornar Q y R
