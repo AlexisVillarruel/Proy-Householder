@@ -36,45 +36,88 @@ def solve_cholesky(X, y):
 
     return beta_hat
 
+def verificar_datos_reales(matriz, vector):
+    """
+    Verifica que todos los elementos en la matriz y el vector sean números reales y finitos.
+
+    Input:
+    - matriz : Matriz X.
+    - vector : Vector y.
+    """
+    if not np.isrealobj(matriz) or not np.isrealobj(vector):    # Condición: Verifica si matriz y vector contienen solo números reales
+        return False, "Error: Los datos deben ser números reales. El programa aun no acepta números complejos."
+    
+    if not np.all(np.isfinite(matriz)) or not np.all(np.isfinite(vector)):  # Condición: Verifica que todos los valores sean finitos o no numéricos
+        return False, "Error: Los datos contienen valores no numéricos o infinitos."
+
+    return True, None
+
 def householder_reflection(A, tol=1e-10):
-    """Descomposición QR por reflexiones de Householder."""
+    """
+    Realiza la descomposición QR usando reflexiones de Householder.
+    Input
+    - A : Matriz a descomponer.
+    - tol : Umbral de tolerancia para considerar valores como cero en R para estabilidad del algoritmo.
+
+    Retorna:
+    - Q : Matriz ortogonal.
+    - R : Matriz triangular superior.
+    """
     m, n = A.shape
-    if m < n:
-        return None, None, "Error: m debe ser >= n."
+    
+    if m < n:       # Condición: Verifica que m >= n para que sea posible la descomposición QR
+        return None, None, "Error: La matriz debe tener m >= n para realizar la descomposición QR."
     
     Q = np.eye(m)  
-    R = A.copy()  
+    R = A.copy()   
 
-    for i in range(n):  # Itera sobre cada columna de A
-        x = R[i:, i]  
-        norm_x = np.linalg.norm(x)  # Calcula la norma del subvector
+    for i in range(n):
+        x = R[i:, i]
+        norm_x = np.linalg.norm(x)
+        
         if norm_x == 0:
-            continue  # Si la norma es cero, no se requiere transformación
+            continue
         
         e1 = np.zeros_like(x)
         e1[0] = norm_x
         v = x - e1
-        v = v / np.linalg.norm(v)  # Normaliza v
+        v = v / np.linalg.norm(v)
 
         H_i = np.eye(m)
-        H_i[i:, i:] -= 2.0 * np.outer(v, v) 
+        H_i[i:, i:] -= 2.0 * np.outer(v, v)
         
         R = H_i @ R
         Q = Q @ H_i
 
     R = np.triu(R, k=0) * (np.abs(R) > tol)
 
-    # Verificación de que Q es ortogonal
-    if not np.allclose(Q.T @ Q, np.eye(m), atol=tol):
+    if not np.allclose(Q.T @ Q, np.eye(m), atol=tol):   # Verifica que Q sea ortogonal
         return None, None, "Error: La matriz Q no es ortogonal."
 
     return Q, R, None
 
 def linear_regression_householder(X, y, tol=1e-10):
-    """Calcula beta usando QR de Householder."""
+    """
+    Calcula los coeficientes beta en un modelo de regresión lineal mediante QR por Householder.
+
+    Input:
+    - X : Matriz de diseño.
+    - y : Vector de observaciones.
+
+    Retorna:
+    - beta_hat : Estimación de los coeficientes beta.
+    """
+    
+    if X.size == 0 or y.size == 0:
+        return None, "Error: La matriz X y el vector y no deben estar vacíos."
+
+    datos_reales, error = verificar_datos_reales(X, y)
+    if not datos_reales:
+        return None, error
+
     m, n = X.shape
-    # Verificar que X tiene rango completo
-    if np.linalg.matrix_rank(X) < n:
+
+    if np.linalg.matrix_rank(X) < n:        # Verifica que las columnas de X sean linealmente independientes
         return None, "Error: Las columnas de X deben ser linealmente independientes."
     
     Q, R, error = householder_reflection(X, tol)
@@ -86,10 +129,9 @@ def linear_regression_householder(X, y, tol=1e-10):
     print("\nMatriz R:")
     print(R)
 
-    Qt_y = Q.T @ y
+    Qt_y = Q.T @ y  
 
-    # Verificar que R esté bien condicionada para estabilidad numérica
-    if np.linalg.cond(R[:n, :]) > 1e10:
+    if np.linalg.cond(R[:n, :]) > 1e10:          # Verifica que R esté bien condicionada para estabilidad numérica
         return None, "Error: La matriz R es mal condicionada o singular."
 
     try:
@@ -232,34 +274,35 @@ def menu_descomposicion():
     return choice
 
 def main():
-    X, y = menu_creacion_matriz()
-    choice = menu_descomposicion()
-    
-    if choice == 1:
-        try:
-            beta = solve_cholesky(X, y)
-            print("Coeficientes obtenidos (Cholesky):", beta)
-        except ValueError as e:
-            print("Error:", e)
-    elif choice == 2:
-        beta, error = linear_regression_householder(X, y)
-        if error:
-            print("Error:", error)
+    while True:
+        X, y = menu_creacion_matriz()
+        choice = menu_descomposicion()
+        
+        if choice == 1:
+            try:
+                beta = solve_cholesky(X, y)
+                print("Coeficientes obtenidos (Cholesky):", beta)
+            except ValueError as e:
+                print("Error:", e)
+        elif choice == 2:
+            beta, error = linear_regression_householder(X, y)
+            if error:
+                print("Error:", error)
+            else:
+                print("Coeficientes obtenidos (Householder):", beta)
+        elif choice == 3:
+            try:
+                beta = gram_schmidt_linear_regression(X, y)
+                print("Coeficientes obtenidos (Gram-Schmidt):", beta)
+            except ValueError as e:
+                print("Error:", e)
+        elif choice == 4:
+            try:
+                beta = regresion_SVD(X, y)
+                print("Coeficientes obtenidos (SVD):", beta)
+            except ValueError as e:
+                print("Error:", e)
         else:
-            print("Coeficientes obtenidos (Householder):", beta)
-    elif choice == 3:
-        try:
-            beta = gram_schmidt_linear_regression(X, y)
-            print("Coeficientes obtenidos (Gram-Schmidt):", beta)
-        except ValueError as e:
-            print("Error:", e)
-    elif choice == 4:
-        try:
-            beta = regresion_SVD(X, y)
-            print("Coeficientes obtenidos (SVD):", beta)
-        except ValueError as e:
-            print("Error:", e)
-    else:
-        print("Opción no válida.")
+            print("Opción no válida.")
 
 main()
