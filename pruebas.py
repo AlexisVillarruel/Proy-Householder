@@ -1,87 +1,63 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import time
-from codigoTriangulacionHouseHolder import householder_reflection, linear_regression_householder
+import matplotlib.pyplot as plt
+from Trabajo_Final import solve_cholesky, linear_regression_householder, gram_schmidt_linear_regression, regresion_SVD
 
-# --- Prueba de Tiempo de Ejecución ---
+def ejecutar_pruebas(X, y):
+    tiempos = {}
 
-# Configuración de tamaños de matrices para la prueba
-matrix_sizes = [(100, 10), (200, 20), (300, 30), (400, 40), (500, 50)]
-times = []
+    # Medir tiempo para la descomposición de Cholesky
+    inicio = time.time()
+    try:
+        beta_cholesky = solve_cholesky(X, y)
+        tiempos["Cholesky"] = time.time() - inicio
+        print("Coeficientes obtenidos (Cholesky):", beta_cholesky)
+    except ValueError as e:
+        tiempos["Cholesky"] = None
+        print("Error en descomposición de Cholesky:", e)
 
-# Función para generar matrices de rango completo y bien condicionadas
-def generate_well_conditioned_matrix(m, n, condition_number=10):
-    """
-    Genera una matriz de tamaño (m, n) que cumple con:
-    - Rango completo
-    - Número de condición controlado
-    """
-    # Genera una matriz aleatoria y realiza su descomposición SVD
-    U, _, Vt = np.linalg.svd(np.random.rand(m, n), full_matrices=False)
-    # Crea un conjunto de valores singulares con un número de condición específico
-    singular_values = np.linspace(condition_number, 1, n)
-    # Reconstruye la matriz con el rango completo y el número de condición deseado
-    A = U @ np.diag(singular_values) @ Vt
-    return A
+    # Medir tiempo para la descomposición QR usando Householder
+    inicio = time.time()
+    try:
+        beta_householder, error = linear_regression_householder(X, y)
+        tiempos["Householder"] = time.time() - inicio
+        if error:
+            print("Error en descomposición QR Householder:", error)
+        else:
+            print("Coeficientes obtenidos (Householder):", beta_householder)
+    except ValueError as e:
+        tiempos["Householder"] = None
+        print("Error en descomposición QR Householder:", e)
 
-# Prueba de tiempo de ejecución para la descomposición QR de Householder
-for m, n in matrix_sizes:
-    A = generate_well_conditioned_matrix(m, n)  # Genera una matriz bien condicionada de tamaño (m, n)
-    start_time = time.time()   # Marca el tiempo de inicio
-    householder_reflection(A)  # Llama a la descomposición QR
-    elapsed_time = time.time() - start_time  # Calcula el tiempo de ejecución
-    times.append(elapsed_time)  # Guarda el tiempo
+    # Medir tiempo para la ortogonalización de Gram-Schmidt
+    inicio = time.time()
+    try:
+        beta_gram_schmidt = gram_schmidt_linear_regression(X, y)
+        tiempos["Gram-Schmidt"] = time.time() - inicio
+        print("Coeficientes obtenidos (Gram-Schmidt):", beta_gram_schmidt)
+    except ValueError as e:
+        tiempos["Gram-Schmidt"] = None
+        print("Error en ortogonalización de Gram-Schmidt:", e)
 
-# Convertir tamaños de matrices en valores escalares para el eje X
-sizes = [m * n for m, n in matrix_sizes]
+    # Medir tiempo para la descomposición SVD
+    inicio = time.time()
+    try:
+        beta_svd = regresion_SVD(X, y)
+        tiempos["SVD"] = time.time() - inicio
+        print("Coeficientes obtenidos (SVD):", beta_svd)
+    except ValueError as e:
+        tiempos["SVD"] = None
+        print("Error en descomposición SVD:", e)
 
-# Generar gráfico de tiempo de ejecución
-plt.figure(figsize=(10, 6))
-plt.plot(sizes, times, marker='o', linestyle='-', color='b')
-plt.xlabel("Tamaño de la Matriz (m x n)")
-plt.ylabel("Tiempo de Ejecución (segundos)")
-plt.title("Tiempo de Ejecución de Descomposición QR mediante Householder")
-plt.grid(True)
-plt.show()
+    # Comparación gráfica de tiempos de ejecución
+    mostrar_grafico_tiempos(tiempos)
 
-# --- Prueba de Estabilidad Numérica ---
+def mostrar_grafico_tiempos(tiempos):
+    metodos = [metodo for metodo, tiempo in tiempos.items() if tiempo is not None]
+    tiempos_filtrados = [tiempo for tiempo in tiempos.values() if tiempo is not None]
 
-# Configuración de prueba para estabilidad numérica
-np.random.seed(0)
-m, n = 100, 10
-X_base = np.random.rand(m, n)
-y_stability = np.random.rand(m)
-
-# Lista de números de condición para observar la estabilidad numérica
-condition_numbers = [1, 10, 100, 1e3, 1e4]
-mse_values = []
-
-# Prueba de estabilidad numérica variando el número de condición de X
-for cond_num in condition_numbers:
-    U, _, Vt = np.linalg.svd(X_base, full_matrices=False)  # Descomposición SVD de X_base
-    singular_values = np.linspace(cond_num, 1, n)  # Genera valores singulares con el número de condición deseado
-    X_cond = U @ np.diag(singular_values) @ Vt  # Reconstruye X con el número de condición deseado
-    
-    # Calcular beta_hat usando la función de regresión lineal de Householder
-    beta_hat, error = linear_regression_householder(X_cond, y_stability)
-    
-    # Si hay un error (por ejemplo, beta_hat es None), omitir este punto
-    if error:
-        print(f"Número de condición: {cond_num}, Error: {error}")
-        mse_values.append(np.nan)  # Usa NaN para indicar que hubo un error en este caso
-    else:
-        # Predicción y cálculo del MSE
-        y_pred = X_cond @ beta_hat
-        mse = np.mean((y_stability - y_pred) ** 2)
-        mse_values.append(mse)
-        print(f"Número de condición: {cond_num}, MSE: {mse}")
-
-# Generar gráfico de estabilidad numérica
-plt.figure(figsize=(10, 6))
-plt.plot(condition_numbers, mse_values, marker='o', linestyle='-', color='r')
-plt.xscale("log")
-plt.xlabel("Número de Condición de la Matriz X (escala logarítmica)")
-plt.ylabel("Error Cuadrático Medio (MSE)")
-plt.title("Impacto del Número de Condición en la Estabilidad Numérica de Householder QR")
-plt.grid(True)
-plt.show()
+    plt.figure(figsize=(10, 6))
+    plt.bar(metodos, tiempos_filtrados, color='skyblue')
+    plt.xlabel("Método de Descomposición")
+    plt.ylabel("Tiempo de Ejecución (segundos)")
+    plt.title("Comparación de Tiempos de Ejecución de Métodos de Regresión")
+    plt.show()

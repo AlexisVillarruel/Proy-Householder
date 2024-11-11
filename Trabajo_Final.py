@@ -1,4 +1,10 @@
 import numpy as np 
+import matplotlib.pyplot as plt
+import time
+
+X = None
+y = None
+
 def cholesky_decomposition(A):
     """Realiza la descomposición de Cholesky de una matriz A"""
     n = A.shape[0]
@@ -108,18 +114,25 @@ def linear_regression_householder(X, y, tol=1e-10):
     - beta_hat : Estimación de los coeficientes beta.
     """
     
+    # Verificar si la matriz X y el vector y no están vacíos
     if X.size == 0 or y.size == 0:
         return None, "Error: La matriz X y el vector y no deben estar vacíos."
 
+    # Verificar que el número de filas sea mayor o igual al número de columnas
+    m, n = X.shape
+    if m < n:       # Condición: Verifica que m >= n para que sea posible la descomposición QR
+        return None, "Error: La matriz debe tener m >= n para realizar la descomposición QR."
+
+    # Verificar la independencia lineal de las columnas
+    if np.linalg.matrix_rank(X) < n:        # Verifica que las columnas de X sean linealmente independientes
+        return None, "Error: Las columnas de X deben ser linealmente independientes."
+
+    # Verificar que los datos sean reales y no contengan valores no numéricos o infinitos
     datos_reales, error = verificar_datos_reales(X, y)
     if not datos_reales:
         return None, error
 
-    m, n = X.shape
-
-    if np.linalg.matrix_rank(X) < n:        # Verifica que las columnas de X sean linealmente independientes
-        return None, "Error: Las columnas de X deben ser linealmente independientes."
-    
+    # Realizar la descomposición QR mediante reflexiones de Householder
     Q, R, error = householder_reflection(X, tol)
     if error:
         return None, error
@@ -129,9 +142,11 @@ def linear_regression_householder(X, y, tol=1e-10):
     print("\nMatriz R:")
     print(R)
 
+    # Resolver R * beta = Q^T * y
     Qt_y = Q.T @ y  
 
-    if np.linalg.cond(R[:n, :]) > 1e10:          # Verifica que R esté bien condicionada para estabilidad numérica
+    # Verificar que R esté bien condicionada para estabilidad numérica
+    if np.linalg.cond(R[:n, :]) > 1e10:          
         return None, "Error: La matriz R es mal condicionada o singular."
 
     try:
@@ -141,7 +156,6 @@ def linear_regression_householder(X, y, tol=1e-10):
         return None, "Error: No se pudo resolver el sistema lineal."
 
     return beta_hat, None
-
   
 def gram_schmidt_linear_regression(X, y):
     # Validaciones de entrada
@@ -231,10 +245,83 @@ def regresion_SVD(X, y):
     beta = VT @ Sigma_pinv @ U.T @ y
     return beta
 
+##############################################
+##### Pruebas ( Test de tiempo entre los diferentes tiempos de los algoritmos)
+##############################################
+
+def ejecutar_pruebas(X, y):
+    tiempos = {}
+
+    # Medir tiempo para la descomposición de Cholesky
+    inicio = time.perf_counter()
+    try:
+        beta_cholesky = solve_cholesky(X, y)
+        tiempos["Cholesky"] = time.perf_counter() - inicio
+        print("Coeficientes obtenidos (Cholesky):", beta_cholesky)
+        print(f"Tiempo de ejecución (Cholesky): {tiempos['Cholesky']:.6f} segundos")
+    except ValueError as e:
+        tiempos["Cholesky"] = None
+        print("Error en descomposición de Cholesky:", e)
+
+    # Medir tiempo para la descomposición QR usando Householder
+    inicio = time.perf_counter()
+    try:
+        beta_householder, error = linear_regression_householder(X, y)
+        tiempos["Householder"] = time.perf_counter() - inicio
+        if error:
+            print("Error en descomposición QR Householder:", error)
+        else:
+            print("Coeficientes obtenidos (Householder):", beta_householder)
+            print(f"Tiempo de ejecución (Householder): {tiempos['Householder']:.6f} segundos")
+    except ValueError as e:
+        tiempos["Householder"] = None
+        print("Error en descomposición QR Householder:", e)
+
+    # Medir tiempo para la ortogonalización de Gram-Schmidt
+    inicio = time.perf_counter()
+    try:
+        beta_gram_schmidt = gram_schmidt_linear_regression(X, y)
+        tiempos["Gram-Schmidt"] = time.perf_counter() - inicio
+        print("Coeficientes obtenidos (Gram-Schmidt):", beta_gram_schmidt)
+        print(f"Tiempo de ejecución (Gram-Schmidt): {tiempos['Gram-Schmidt']:.6f} segundos")
+    except ValueError as e:
+        tiempos["Gram-Schmidt"] = None
+        print("Error en ortogonalización de Gram-Schmidt:", e)
+
+    # Medir tiempo para la descomposición SVD
+    inicio = time.perf_counter()
+    try:
+        beta_svd = regresion_SVD(X, y)
+        tiempos["SVD"] = time.perf_counter() - inicio
+        print("Coeficientes obtenidos (SVD):", beta_svd)
+        print(f"Tiempo de ejecución (SVD): {tiempos['SVD']:.6f} segundos")
+    except ValueError as e:
+        tiempos["SVD"] = None
+        print("Error en descomposición SVD:", e)
+
+    # Mostrar gráfico comparativo de tiempos de ejecución
+    mostrar_grafico_tiempos(tiempos)
+
+def mostrar_grafico_tiempos(tiempos):
+    """Genera un gráfico de barras para comparar los tiempos de ejecución de cada método."""
+    metodos = [metodo for metodo, tiempo in tiempos.items() if tiempo is not None]
+    tiempos_filtrados = [tiempo for tiempo in tiempos.values() if tiempo is not None]
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(metodos, tiempos_filtrados, color='skyblue')
+    plt.xlabel("Método de Descomposición")
+    plt.ylabel("Tiempo de Ejecución (segundos)")
+    plt.title("Comparación de Tiempos de Ejecución de Métodos de Regresión")
+    plt.show()
+
+###############################################
+
 def menu_creacion_matriz():
     print("Opciones para la matriz y el vector:")
     print("1. Crear matriz y vector manualmente")
     print("2. Generar matriz y vector aleatoriamente")
+   
+    
     data_choice = int(input("Ingrese el número de la opción deseada: "))
 
     if data_choice == 1:
@@ -251,11 +338,13 @@ def menu_creacion_matriz():
         print("Ingrese los elementos del vector:")
         for i in range(rows):
             y[i] = float(input(f"Elemento [{i+1}]: "))
+    
+            
     else:
         rows = int(input("Ingrese el número de filas para la matriz: "))
         cols = int(input("Ingrese el número de columnas para la matriz: "))
-        X = np.random.rand(rows, cols)
-        y = np.random.rand(rows)
+        X = np.random.randint(0, 10, (rows, cols))
+        y = np.random.randint(0, 10, rows)
         
         print("\nMatriz generada aleatoriamente:")
         print(X)
@@ -270,6 +359,8 @@ def menu_descomposicion():
     print("2. Householder")
     print("3. Gram-Schmidt")
     print("4. SVD")
+    print("5. Realizar test de tiempo")
+    print("6. Salir")
     choice = int(input("Ingrese el número de la opción deseada: "))
     return choice
 
@@ -302,6 +393,11 @@ def main():
                 print("Coeficientes obtenidos (SVD):", beta)
             except ValueError as e:
                 print("Error:", e)
+        elif choice == 5:
+                ejecutar_pruebas(X,y)
+        elif choice == 6:
+                print("Fin")
+                break
         else:
             print("Opción no válida.")
 
